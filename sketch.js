@@ -7,6 +7,7 @@ let computerMove = "等待中...";
 let lastChangeTime = 0;
 let duration = 3000; // 每回合 3 秒
 let gameResult = "";
+let gameState = "playing"; // 遊戲狀態：playing 或 finished
 
 function preload() {
   handPose = ml5.handPose(options);
@@ -50,29 +51,48 @@ function draw() {
   }
 
   // 2. 計算倒數秒數與勝負邏輯
-  let timePassed = millis() - lastChangeTime;
-  let countdown = Math.ceil((duration - timePassed) / 1000);
+  if (gameState === "playing") {
+    let timePassed = millis() - lastChangeTime;
+    let countdown = Math.ceil((duration - timePassed) / 1000);
 
-  // 時間到，電腦出拳並判定勝負
-  if (timePassed > duration) {
-    computerMove = random(gestures);
-    // 在時間到的那一瞬間判定勝負
-    gameResult = calculateResult(playerGesture, computerMove);
-    lastChangeTime = millis();
+    // 時間到，電腦出拳並判定勝負
+    if (timePassed > duration) {
+      computerMove = random(gestures);
+      gameResult = calculateResult(playerGesture, computerMove);
+      gameState = "finished"; // 切換到結束狀態
+    }
+
+    // 顯示倒數數字
+    if (countdown > 0) {
+      push();
+      fill(57, 255, 20, 200); 
+      textStyle(BOLD);
+      textSize(vHeight * 0.4); 
+      text(countdown, width / 2, height / 2);
+      pop();
+    }
+  } else if (gameState === "finished") {
+    // 結束畫面：加上半透明遮罩與大字體結果
+    push();
+    fill(0, 0, 0, 180);
+    rect(0, 0, width, height);
+
+    if (gameResult.includes("贏")) fill(0, 255, 0);      // 贏：綠色
+    else if (gameResult.includes("輸")) fill(255, 0, 0); // 輸：紅色
+    else fill(255, 255, 0);                             // 平手：黃色
+    
+    textStyle(BOLD);
+    textSize(80);
+    text(gameResult, width / 2, height / 2);
+    
+    fill(255);
+    textSize(30);
+    text("點擊畫面 再來一局", width / 2, height / 2 + 100);
+    pop();
   }
 
   // 4. 頂部與底部 UI 資訊
   drawUI(playerGesture, gameResult);
-
-  // 5. 畫面中央的大綠色倒數數字 (如同你圖片中的大數字 "3")
-  if (countdown > 0) {
-    push();
-    fill(57, 255, 20, 200); // 螢光綠，帶一點透明度
-    textStyle(BOLD);
-    textSize(vHeight * 0.4); // 根據畫面大小動態調整字體
-    text(countdown, width / 2, height / 2);
-    pop();
-  }
 }
 
 // 判定勝負邏輯
@@ -174,6 +194,16 @@ function drawUI(playerGesture, result) {
   
   text("你出：" + emoji + playerGesture, width / 2, height * 0.88);
   pop();
+}
+
+// 點擊重啟遊戲
+function mousePressed() {
+  if (gameState === "finished") {
+    gameState = "playing";
+    lastChangeTime = millis();
+    gameResult = "";
+    computerMove = "等待中...";
+  }
 }
 
 function windowResized() {
