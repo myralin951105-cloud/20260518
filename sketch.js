@@ -26,7 +26,7 @@ function gotHands(results) {
 }
 
 function draw() {
-  background('#1a1a2e'); // 改用深色背景，讓綠色骨架更顯眼
+  background('666666'); // 改用深色背景，讓綠色骨架更顯眼
 
   // 計算全螢幕滿版或比例顯示 (這裡維持原本的 50% 區塊置中，你可以自由調大)
   let vWidth = width * 0.8;
@@ -48,18 +48,7 @@ function draw() {
     drawHandSkeleton(hand, vWidth, vHeight);
   }
 
-  if (gameState === "playing") {
-    // 提示玩家點擊出拳
-    push();
-    fill(255, 255, 255, 200);
-    rectMode(CENTER);
-    noStroke();
-    rect(width / 2, height * 0.5, 400, 60, 10);
-    fill(0);
-    textSize(24);
-    text("擺好手勢後，點擊畫面出拳！", width / 2, height * 0.5);
-    pop();
-  } else if (gameState === "finished") {
+  if (gameState === "finished") {
     // 結束畫面：加上半透明遮罩與大字體結果
     push();
     fill(0, 0, 0, 180);
@@ -161,15 +150,21 @@ function drawHandSkeleton(hand, vw, vh) {
 // 畫出上下的文字 UI
 function drawUI(playerGesture, result) {
   push();
-  // 上方：電腦狀態
-  fill(255);
-  textSize(28);
-  text("電腦出拳: " + computerMove, width / 2, height * 0.1);
+  if (gameState === "finished") {
+    // 上方：電腦狀態
+    fill(255);
+    textSize(28);
+    text("電腦出拳: " + computerMove, width / 2, height * 0.1);
 
-  // 中間上方：顯示結果
-  fill(255, 255, 255);
-  textSize(40);
-  text(result, width / 2, height * 0.18);
+    // 中間上方：顯示結果
+    fill(255, 255, 255);
+    textSize(40);
+    text(result, width / 2, height * 0.18);
+  } else {
+    fill(255);
+    textSize(28);
+    text("✋ 準備好後，點擊畫面出拳！", width / 2, height * 0.1);
+  }
 
   // 下方：玩家手勢
   fill(255, 215, 0); // 金黃色字體
