@@ -28,7 +28,7 @@ function gotHands(results) {
 }
 
 function draw() {
-  background('#1a1a2e'); // 改用深色背景，讓綠色骨架更顯眼
+  background('#333333'); // 改用深色背景，讓綠色骨架更顯眼
 
   // 計算全螢幕滿版或比例顯示 (這裡維持原本的 50% 區塊置中，你可以自由調大)
   let vWidth = width * 0.8;
