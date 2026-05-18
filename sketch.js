@@ -6,8 +6,6 @@ let gestures = ["石頭", "剪刀", "布"];
 let computerMove = "等待中...";
 let lastChangeTime = 0;
 let duration = 3000; // 每回合 3 秒
-let gameResult = "";
-let gameState = "playing"; // 遊戲狀態：playing 或 finished
 
 function preload() {
   handPose = ml5.handPose(options);
@@ -31,7 +29,7 @@ function draw() {
   background('#1a1a2e'); // 改用深色背景，讓綠色骨架更顯眼
 
   // 計算全螢幕滿版或比例顯示 (這裡維持原本的 50% 區塊置中，你可以自由調大)
-  let vWidth = width * 0.8;
+  let vWidth = width * 0.6;
   let vHeight = (vWidth / 640) * 480; // 照比例縮放
 
   // 1. 畫出攝影機影像
@@ -39,6 +37,16 @@ function draw() {
   translate(width / 2, height / 2);
   image(capture, -vWidth / 2, -vHeight / 2, vWidth, vHeight);
   pop();
+
+  // 2. 計算倒數秒數
+  let timePassed = millis() - lastChangeTime;
+  let countdown = Math.ceil((duration - timePassed) / 1000);
+
+  // 時間到，電腦出拳
+  if (timePassed > duration) {
+    computerMove = random(gestures);
+    lastChangeTime = millis();
+  }
 
   // 3. 辨識玩家手勢並顯示結果
   let playerGesture = "偵測中...";
@@ -50,74 +58,18 @@ function draw() {
     drawHandSkeleton(hand, vWidth, vHeight);
   }
 
-  // 2. 計算倒數秒數與勝負邏輯
-  if (gameState === "playing") {
-    let timePassed = millis() - lastChangeTime;
-    let countdown = Math.ceil((duration - timePassed) / 1000);
+  // 4. 頂部與底部 UI 資訊
+  drawUI(playerGesture);
 
-    // 時間到，電腦出拳並判定勝負，進入結束狀態
-    if (timePassed > duration) {
-      computerMove = random(gestures);
-      gameResult = calculateResult(playerGesture, computerMove);
-      gameState = "finished";
-    }
-
-  } else if (gameState === "finished") {
-    // 1. 結束畫面：加上一個半透明遮罩
+  // 5. 畫面中央的大綠色倒數數字 (如同你圖片中的大數字 "3")
+  if (countdown > 0) {
     push();
-    fill(0, 0, 0, 180);
-    noStroke();
-    rect(0, 0, width, height);
-
-    // 2. 顯示巨大的勝負結果
-    if (gameResult.includes("贏")) fill(0, 255, 0);      // 綠色代表贏
-    else if (gameResult.includes("輸")) fill(255, 0, 0); // 紅色代表輸
-    else fill(255, 255, 0);                             // 黃色代表平手
-    
+    fill(57, 255, 20, 200); // 螢光綠，帶一點透明度
     textStyle(BOLD);
-    textSize(80);
-    text(gameResult, width / 2, height / 2 - 40);
-
-    // 3. 顯示再來一局提示
-    fill(255);
-    textSize(30);
-    text("點擊畫面 再來一局", width / 2, height / 2 + 60);
-    noStroke();
+    textSize(vHeight * 0.4); // 根據畫面大小動態調整字體
+    text(countdown, width / 2, height / 2);
     pop();
   }
-
-  // 5. 顯示倒數數字 (只在遊玩中顯示)
-  if (gameState === "playing") {
-    let timePassed = millis() - lastChangeTime;
-    let countdown = Math.ceil((duration - timePassed) / 1000);
-    if (countdown > 0) {
-      push();
-      fill(57, 255, 20); 
-      textStyle(BOLD);
-      textSize(vHeight * 0.4);
-      text(countdown, width / 2, height / 2);
-      pop();
-    }
-  }
-
-  // 4. 頂部與底部 UI 資訊
-  drawUI(playerGesture, gameResult);
-}
-
-// 判定勝負邏輯
-function calculateResult(player, computer) {
-  if (player === "判斷中" || player === "偵測中...") {
-    return "沒看清楚，請重來！";
-  }
-  if (player === computer) {
-    return "這局是 平手 🤝";
-  }
-  if ((player === "剪刀" && computer === "布") ||
-      (player === "石頭" && computer === "剪刀") ||
-      (player === "布" && computer === "石頭")) {
-    return "恭喜！你贏了 🎉";
-  }
-  return "可惜... 你輸了 😵";
 }
 
 // 精準的手勢辨識
@@ -180,19 +132,12 @@ function drawHandSkeleton(hand, vw, vh) {
 }
 
 // 畫出上下的文字 UI
-function drawUI(playerGesture, result) {
+function drawUI(playerGesture) {
   push();
   // 上方：電腦狀態
   fill(255);
   textSize(28);
   text("電腦出拳: " + computerMove, width / 2, height * 0.1);
-
-  // 當遊戲還在進行時，提醒玩家準備
-  if (gameState === "playing") {
-    fill(200);
-    textSize(20);
-    text("準備出拳...", width / 2, height * 0.18);
-  }
 
   // 下方：玩家手勢
   fill(255, 215, 0); // 金黃色字體
@@ -205,16 +150,6 @@ function drawUI(playerGesture, result) {
   
   text("你出：" + emoji + playerGesture, width / 2, height * 0.88);
   pop();
-}
-
-// 點擊重啟遊戲
-function mousePressed() {
-  if (gameState === "finished") {
-    gameState = "playing";
-    lastChangeTime = millis();
-    gameResult = "";
-    computerMove = "等待中...";
-  }
 }
 
 function windowResized() {
