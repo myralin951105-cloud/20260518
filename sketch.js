@@ -4,8 +4,9 @@ let hands = [];
 let options = { flipHorizontal: true }; 
 let gestures = ["石頭", "剪刀", "布"];
 let computerMove = "等待中...";
+let lastChangeTime = 0;
+let duration = 3000; // 每回合 3 秒
 let gameResult = "";
-let gameState = "playing"; // 遊戲狀態：playing 或 finished
 
 function preload() {
   handPose = ml5.handPose(options);
@@ -26,7 +27,7 @@ function gotHands(results) {
 }
 
 function draw() {
-  background('666666'); // 改用深色背景，讓綠色骨架更顯眼
+  background('#1a1a2e'); // 改用深色背景，讓綠色骨架更顯眼
 
   // 計算全螢幕滿版或比例顯示 (這裡維持原本的 50% 區塊置中，你可以自由調大)
   let vWidth = width * 0.8;
@@ -48,28 +49,30 @@ function draw() {
     drawHandSkeleton(hand, vWidth, vHeight);
   }
 
-  if (gameState === "finished") {
-    // 結束畫面：加上半透明遮罩與大字體結果
-    push();
-    fill(0, 0, 0, 180);
-    rect(0, 0, width, height);
+  // 2. 計算倒數秒數與勝負邏輯
+  let timePassed = millis() - lastChangeTime;
+  let countdown = Math.ceil((duration - timePassed) / 1000);
 
-    if (gameResult.includes("贏")) fill(0, 255, 0);      // 贏：綠色
-    else if (gameResult.includes("輸")) fill(255, 0, 0); // 輸：紅色
-    else fill(255, 255, 0);                             // 平手：黃色
-    
-    textStyle(BOLD);
-    textSize(80);
-    text(gameResult, width / 2, height / 2);
-    
-    fill(255);
-    textSize(30);
-    text("點擊畫面 再來一局", width / 2, height / 2 + 100);
-    pop();
+  // 時間到，電腦出拳並判定勝負
+  if (timePassed > duration) {
+    computerMove = random(gestures);
+    // 在時間到的那一瞬間判定勝負
+    gameResult = calculateResult(playerGesture, computerMove);
+    lastChangeTime = millis();
   }
 
   // 4. 頂部與底部 UI 資訊
   drawUI(playerGesture, gameResult);
+
+  // 5. 畫面中央的大綠色倒數數字 (如同你圖片中的大數字 "3")
+  if (countdown > 0) {
+    push();
+    fill(57, 255, 20, 200); // 螢光綠，帶一點透明度
+    textStyle(BOLD);
+    textSize(vHeight * 0.4); // 根據畫面大小動態調整字體
+    text(countdown, width / 2, height / 2);
+    pop();
+  }
 }
 
 // 判定勝負邏輯
@@ -150,21 +153,15 @@ function drawHandSkeleton(hand, vw, vh) {
 // 畫出上下的文字 UI
 function drawUI(playerGesture, result) {
   push();
-  if (gameState === "finished") {
-    // 上方：電腦狀態
-    fill(255);
-    textSize(28);
-    text("電腦出拳: " + computerMove, width / 2, height * 0.1);
+  // 上方：電腦狀態
+  fill(255);
+  textSize(28);
+  text("電腦出拳: " + computerMove, width / 2, height * 0.1);
 
-    // 中間上方：顯示結果
-    fill(255, 255, 255);
-    textSize(40);
-    text(result, width / 2, height * 0.18);
-  } else {
-    fill(255);
-    textSize(28);
-    text("✋ 準備好後，點擊畫面出拳！", width / 2, height * 0.1);
-  }
+  // 中間上方：顯示結果
+  fill(255, 255, 255);
+  textSize(40);
+  text(result, width / 2, height * 0.18);
 
   // 下方：玩家手勢
   fill(255, 215, 0); // 金黃色字體
@@ -177,25 +174,6 @@ function drawUI(playerGesture, result) {
   
   text("你出：" + emoji + playerGesture, width / 2, height * 0.88);
   pop();
-}
-
-// 點擊重啟遊戲
-function mousePressed() {
-  if (gameState === "playing") {
-    // 點擊時根據當下偵測到的手勢進行判定
-    let playerGesture = "偵測中...";
-    if (hands.length > 0) {
-      playerGesture = detectGesture(hands[0]);
-    }
-    computerMove = random(gestures);
-    gameResult = calculateResult(playerGesture, computerMove);
-    gameState = "finished";
-  } else if (gameState === "finished") {
-    // 結束狀態下點擊則回到準備狀態
-    gameState = "playing";
-    gameResult = "";
-    computerMove = "等待中...";
-  }
 }
 
 function windowResized() {
