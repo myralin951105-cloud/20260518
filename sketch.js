@@ -61,27 +61,42 @@ function draw() {
       gameState = "finished";
     }
 
-    // 顯示倒數數字
+  } else if (gameState === "finished") {
+    // 1. 結束畫面：加上一個半透明遮罩
+    push();
+    fill(0, 0, 0, 180);
+    noStroke();
+    rect(0, 0, width, height);
+
+    // 2. 顯示巨大的勝負結果
+    if (gameResult.includes("贏")) fill(0, 255, 0);      // 綠色代表贏
+    else if (gameResult.includes("輸")) fill(255, 0, 0); // 紅色代表輸
+    else fill(255, 255, 0);                             // 黃色代表平手
+    
+    textStyle(BOLD);
+    textSize(80);
+    text(gameResult, width / 2, height / 2 - 40);
+
+    // 3. 顯示再來一局提示
+    fill(255);
+    textSize(30);
+    text("點擊畫面 再來一局", width / 2, height / 2 + 60);
+    noStroke();
+    pop();
+  }
+
+  // 5. 顯示倒數數字 (只在遊玩中顯示)
+  if (gameState === "playing") {
+    let timePassed = millis() - lastChangeTime;
+    let countdown = Math.ceil((duration - timePassed) / 1000);
     if (countdown > 0) {
       push();
-      fill(57, 255, 20, 200); 
+      fill(57, 255, 20); 
       textStyle(BOLD);
       textSize(vHeight * 0.4);
       text(countdown, width / 2, height / 2);
       pop();
     }
-  } else if (gameState === "finished") {
-    // 結束畫面：顯示再來一局提示
-    push();
-    fill(255, 255, 255, 150);
-    rectMode(CENTER);
-    noStroke();
-    rect(width / 2, height * 0.7, 300, 60, 10); // 提示框
-    
-    fill(0);
-    textSize(24);
-    text("點擊畫面 再來一局", width / 2, height * 0.7);
-    pop();
   }
 
   // 4. 頂部與底部 UI 資訊
@@ -171,10 +186,12 @@ function drawUI(playerGesture, result) {
   textSize(28);
   text("電腦出拳: " + computerMove, width / 2, height * 0.1);
 
-  // 中間上方：顯示結果
-  fill(255, 255, 255);
-  textSize(40);
-  text(result, width / 2, height * 0.18);
+  // 當遊戲還在進行時，提醒玩家準備
+  if (gameState === "playing") {
+    fill(200);
+    textSize(20);
+    text("準備出拳...", width / 2, height * 0.18);
+  }
 
   // 下方：玩家手勢
   fill(255, 215, 0); // 金黃色字體
