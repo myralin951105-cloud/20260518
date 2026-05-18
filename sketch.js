@@ -6,6 +6,7 @@ let gestures = ["石頭", "剪刀", "布"];
 let computerMove = "等待中...";
 let lastChangeTime = 0;
 let duration = 3000; // 每回合 3 秒
+let gameResult = "";
 
 function preload() {
   handPose = ml5.handPose(options);
@@ -38,16 +39,6 @@ function draw() {
   image(capture, -vWidth / 2, -vHeight / 2, vWidth, vHeight);
   pop();
 
-  // 2. 計算倒數秒數
-  let timePassed = millis() - lastChangeTime;
-  let countdown = Math.ceil((duration - timePassed) / 1000);
-
-  // 時間到，電腦出拳
-  if (timePassed > duration) {
-    computerMove = random(gestures);
-    lastChangeTime = millis();
-  }
-
   // 3. 辨識玩家手勢並顯示結果
   let playerGesture = "偵測中...";
   if (hands.length > 0) {
@@ -58,8 +49,20 @@ function draw() {
     drawHandSkeleton(hand, vWidth, vHeight);
   }
 
+  // 2. 計算倒數秒數與勝負邏輯
+  let timePassed = millis() - lastChangeTime;
+  let countdown = Math.ceil((duration - timePassed) / 1000);
+
+  // 時間到，電腦出拳並判定勝負
+  if (timePassed > duration) {
+    computerMove = random(gestures);
+    // 在時間到的那一瞬間判定勝負
+    gameResult = calculateResult(playerGesture, computerMove);
+    lastChangeTime = millis();
+  }
+
   // 4. 頂部與底部 UI 資訊
-  drawUI(playerGesture);
+  drawUI(playerGesture, gameResult);
 
   // 5. 畫面中央的大綠色倒數數字 (如同你圖片中的大數字 "3")
   if (countdown > 0) {
@@ -70,6 +73,22 @@ function draw() {
     text(countdown, width / 2, height / 2);
     pop();
   }
+}
+
+// 判定勝負邏輯
+function calculateResult(player, computer) {
+  if (player === "判斷中" || player === "偵測中...") {
+    return "沒看清楚，請重來！";
+  }
+  if (player === computer) {
+    return "這局是 平手 🤝";
+  }
+  if ((player === "剪刀" && computer === "布") ||
+      (player === "石頭" && computer === "剪刀") ||
+      (player === "布" && computer === "石頭")) {
+    return "恭喜！你贏了 🎉";
+  }
+  return "可惜... 你輸了 😵";
 }
 
 // 精準的手勢辨識
@@ -132,12 +151,17 @@ function drawHandSkeleton(hand, vw, vh) {
 }
 
 // 畫出上下的文字 UI
-function drawUI(playerGesture) {
+function drawUI(playerGesture, result) {
   push();
   // 上方：電腦狀態
   fill(255);
   textSize(28);
   text("電腦出拳: " + computerMove, width / 2, height * 0.1);
+
+  // 中間上方：顯示結果
+  fill(255, 255, 255);
+  textSize(40);
+  text(result, width / 2, height * 0.18);
 
   // 下方：玩家手勢
   fill(255, 215, 0); // 金黃色字體
