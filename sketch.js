@@ -1,27 +1,24 @@
 let capture;
 let handPose;
 let hands = [];
-let options = { flipHorizontal: true }; // 因為我們要左右顛倒，模型輸入也設為翻轉
+let options = { flipHorizontal: true }; 
 let gestures = ["石頭", "剪刀", "布"];
 let computerMove = "等待中...";
 let lastChangeTime = 0;
+let duration = 3000; // 每回合 3 秒
 
 function preload() {
-  // 載入 handPose 模型
   handPose = ml5.handPose(options);
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   capture = createCapture(VIDEO, { flipped: true });
-  capture.size(640, 480); // 攝影機擷取標準解析度，效能較好
+  capture.size(640, 480); 
   capture.hide();
 
-  // 開始偵測手勢
   handPose.detectStart(capture, gotHands);
-  
   textAlign(CENTER, CENTER);
-  textSize(32);
 }
 
 function gotHands(results) {
@@ -29,89 +26,90 @@ function gotHands(results) {
 }
 
 function draw() {
-  background('#cccccc');
+  background('#1a1a2e'); // 改用深色背景，讓綠色骨架更顯眼
 
-  // 計算顯示尺寸 (螢幕寬高 50%)
-  let vWidth = width * 0.5;
-  let vHeight = height * 0.5;
+  // 計算全螢幕滿版或比例顯示 (這裡維持原本的 50% 區塊置中，你可以自由調大)
+  let vWidth = width * 0.6;
+  let vHeight = (vWidth / 640) * 480; // 照比例縮放
 
-  // 1. 畫出攝影機影像 (左右顛倒)
+  // 1. 畫出攝影機影像
   push();
   translate(width / 2, height / 2);
-  // 注意：capture 本身已經在 setup 設定 flipped: true，所以這裡直接畫即可
   image(capture, -vWidth / 2, -vHeight / 2, vWidth, vHeight);
   pop();
 
-  // 2. 電腦邏輯：每 3 秒變換一次出拳
-  if (millis() - lastChangeTime > 3000) {
+  // 2. 計算倒數秒數
+  let timePassed = millis() - lastChangeTime;
+  let countdown = Math.ceil((duration - timePassed) / 1000);
+
+  // 時間到，電腦出拳
+  if (timePassed > duration) {
     computerMove = random(gestures);
     lastChangeTime = millis();
   }
 
   // 3. 辨識玩家手勢並顯示結果
-  let playerGestures = [];
-  
+  let playerGesture = "偵測中...";
   if (hands.length > 0) {
-    for (let i = 0; i < hands.length; i++) {
-      let hand = hands[i];
-      let gesture = detectGesture(hand);
-      playerGestures.push(hand.label + ": " + gesture);
-      
-      // 在畫面上標示手指位置 (需座標轉換)
-      drawHandPoints(hand, vWidth, vHeight);
-    }
+    let hand = hands[0]; // 只取一隻手
+    playerGesture = detectGesture(hand);
+    
+    // 繪製如同結構圖的綠色網狀骨架
+    drawHandSkeleton(hand, vWidth, vHeight);
   }
 
-  // 4. 顯示文字 UI
-  fill(0);
-  text("玩家手勢: " + (playerGestures.length > 0 ? playerGestures.join(" | ") : "偵測中..."), width / 2, height * 0.8);
-  
-  fill(255, 0, 0);
-  text("電腦出拳: " + computerMove, width / 2, height * 0.15);
-  
-  fill(50);
-  textSize(20);
-  text("倒數更換: " + Math.ceil((3000 - (millis() - lastChangeTime)) / 1000) + "s", width / 2, height * 0.22);
-  textSize(32);
+  // 4. 頂部與底部 UI 資訊
+  drawUI(playerGesture);
+
+  // 5. 畫面中央的大綠色倒數數字 (如同你圖片中的大數字 "3")
+  if (countdown > 0) {
+    push();
+    fill(57, 255, 20, 200); // 螢光綠，帶一點透明度
+    textStyle(BOLD);
+    textSize(vHeight * 0.4); // 根據畫面大小動態調整字體
+    text(countdown, width / 2, height / 2);
+    pop();
+  }
 }
 
-// 簡易手勢辨識邏輯
+// 精準的手勢辨識
 function detectGesture(hand) {
-  // ml5 handPose 關節點：8(食指尖), 12(中指尖), 16(無名指尖), 20(小指尖)
-  // 判斷尖端是否高於關節點 (y 座標較小)
-  let f1 = hand.index_finger_tip.y < hand.index_finger_pip.y;
-  let f2 = hand.middle_finger_tip.y < hand.middle_finger_pip.y;
-  let f3 = hand.ring_finger_tip.y < hand.ring_finger_pip.y;
-  let f4 = hand.pinky_finger_tip.y < hand.pinky_finger_pip.y;
+  // 比較指尖與手指第3關節的 Y 軸差距
+  let f1 = hand.keypoints[8].y < hand.keypoints[5].y;   // 食指
+  let f2 = hand.keypoints[12].y < hand.keypoints[9].y;  // 中指
+  let f3 = hand.keypoints[16].y < hand.keypoints[13].y; // 無名指
+  let f4 = hand.keypoints[20].y < hand.keypoints[17].y; // 小指
 
   let count = [f1, f2, f3, f4].filter(v => v).length;
 
+  if (f1 && f2 && !f3 && !f4) return "剪刀"; 
+  if (count >= 3) return "布";
   if (count <= 1) return "石頭";
-  if (count >= 4) return "布";
-  if (f1 && f2 && !f3) return "剪刀";
   return "判斷中";
 }
 
-function drawHandPoints(hand, vw, vh) {
+// 繪製網狀手部骨架 (完美還原 MediaPipe 綠色線條效果)
+function drawHandSkeleton(hand, vw, vh) {
   push();
+  // 將座標系移到攝影機畫面的左上角
   translate(width / 2 - vw / 2, height / 2 - vh / 2);
   
-  // 1. 繪製骨架連線
-  stroke(0, 255, 0);
+  stroke(57, 255, 20); // 螢光綠線條
   strokeWeight(3);
   noFill();
   
-  // 定義手掌與手指的連線路徑 (Landmark 索引 0-20)
-  let fingerPaths = [
-    [0, 1, 2, 3, 4],      // 大拇指
-    [0, 5, 6, 7, 8],      // 食指
-    [0, 9, 10, 11, 12],   // 中指
-    [0, 13, 14, 15, 16],  // 無名指
-    [0, 17, 18, 19, 20],  // 小指
-    [5, 9, 13, 17, 5]     // 掌心基部連線
+  // 完整還原手掌與五指的網狀連接路徑
+  let paths = [
+    [0, 1, 2, 3, 4],       // 大拇指
+    [0, 5, 6, 7, 8],       // 食指
+    [9, 10, 11, 12],       // 中指 (從掌心延伸)
+    [13, 14, 15, 16],      // 無名指
+    [0, 17, 18, 19, 20],   // 小指
+    [5, 9, 13, 17],        // 指根橫向網狀連線
+    [0, 9], [0, 13]        // 掌心內部延伸連線
   ];
 
-  for (let path of fingerPaths) {
+  for (let path of paths) {
     beginShape();
     for (let idx of path) {
       let kp = hand.keypoints[idx];
@@ -122,15 +120,35 @@ function drawHandPoints(hand, vw, vh) {
     endShape();
   }
 
-  // 2. 繪製關節點
-  fill(255, 0, 0);
+  // 繪製圓點關節
+  fill(0, 200, 255); // 關節點用淺藍或淺綠微調
   noStroke();
-  // 將攝影機座標 (640x480) 映射到畫布上的顯示大小
   for (let keypoint of hand.keypoints) {
     let x = map(keypoint.x, 0, capture.width, 0, vw);
     let y = map(keypoint.y, 0, capture.height, 0, vh);
-    circle(x, y, 8);
+    circle(x, y, 7);
   }
+  pop();
+}
+
+// 畫出上下的文字 UI
+function drawUI(playerGesture) {
+  push();
+  // 上方：電腦狀態
+  fill(255);
+  textSize(28);
+  text("電腦出拳: " + computerMove, width / 2, height * 0.1);
+
+  // 下方：玩家手勢
+  fill(255, 215, 0); // 金黃色字體
+  textStyle(BOLD);
+  textSize(32);
+  let emoji = "";
+  if (playerGesture === "石頭") emoji = "✊ ";
+  if (playerGesture === "剪刀") emoji = "✌️ ";
+  if (playerGesture === "布") emoji = "✋ ";
+  
+  text("你出：" + emoji + playerGesture, width / 2, height * 0.88);
   pop();
 }
 
