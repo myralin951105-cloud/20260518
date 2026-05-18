@@ -95,7 +95,35 @@ function detectGesture(hand) {
 function drawHandPoints(hand, vw, vh) {
   push();
   translate(width / 2 - vw / 2, height / 2 - vh / 2);
-  fill(0, 255, 0);
+  
+  // 1. 繪製骨架連線
+  stroke(0, 255, 0);
+  strokeWeight(3);
+  noFill();
+  
+  // 定義手掌與手指的連線路徑 (Landmark 索引 0-20)
+  let fingerPaths = [
+    [0, 1, 2, 3, 4],      // 大拇指
+    [0, 5, 6, 7, 8],      // 食指
+    [0, 9, 10, 11, 12],   // 中指
+    [0, 13, 14, 15, 16],  // 無名指
+    [0, 17, 18, 19, 20],  // 小指
+    [5, 9, 13, 17, 5]     // 掌心基部連線
+  ];
+
+  for (let path of fingerPaths) {
+    beginShape();
+    for (let idx of path) {
+      let kp = hand.keypoints[idx];
+      let x = map(kp.x, 0, capture.width, 0, vw);
+      let y = map(kp.y, 0, capture.height, 0, vh);
+      vertex(x, y);
+    }
+    endShape();
+  }
+
+  // 2. 繪製關節點
+  fill(255, 0, 0);
   noStroke();
   // 將攝影機座標 (640x480) 映射到畫布上的顯示大小
   for (let keypoint of hand.keypoints) {
