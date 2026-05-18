@@ -21,6 +21,7 @@ function setup() {
 
   handPose.detectStart(capture, gotHands);
   textAlign(CENTER, CENTER);
+  lastChangeTime = millis(); // 初始化計時器
 }
 
 function gotHands(results) {
@@ -173,15 +174,21 @@ function drawHandSkeleton(hand, vw, vh) {
 // 畫出上下的文字 UI
 function drawUI(playerGesture, result) {
   push();
-  // 上方：電腦狀態
-  fill(255);
-  textSize(28);
-  text("電腦出拳: " + computerMove, width / 2, height * 0.1);
+  if (gameState === "finished") {
+    // 遊戲結束才顯示電腦出拳與結果
+    fill(255);
+    textSize(28);
+    text("電腦出拳: " + computerMove, width / 2, height * 0.1);
 
-  // 中間上方：顯示結果
-  fill(255, 255, 255);
-  textSize(40);
-  text(result, width / 2, height * 0.18);
+    fill(255, 255, 255);
+    textSize(40);
+    text(result, width / 2, height * 0.18);
+  } else {
+    // 倒數中顯示提示
+    fill(200);
+    textSize(24);
+    text("看準倒數，準備出拳！", width / 2, height * 0.1);
+  }
 
   // 下方：玩家手勢
   fill(255, 215, 0); // 金黃色字體
