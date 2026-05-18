@@ -8,6 +8,7 @@ let lastChangeTime = 0;
 let duration = 3000; // 每回合 3 秒
 let gameResult = "";
 let gameState = "playing"; // 遊戲狀態：playing 或 finished
+let playerFinalMove = ""; // 用於鎖定結算時的手勢
 
 function preload() {
   handPose = ml5.handPose(options);
@@ -59,6 +60,7 @@ function draw() {
     // 時間到，電腦出拳並判定勝負
     if (timePassed > duration) {
       computerMove = random(gestures);
+      playerFinalMove = playerGesture; // 紀錄出拳瞬間的手勢
       gameResult = calculateResult(playerGesture, computerMove);
       gameState = "finished"; // 切換到結束狀態
     }
@@ -175,14 +177,15 @@ function drawHandSkeleton(hand, vw, vh) {
 function drawUI(playerGesture, result) {
   push();
   if (gameState === "finished") {
-    // 遊戲結束才顯示電腦出拳與結果
-    fill(255);
-    textSize(28);
-    text("電腦出拳: " + computerMove, width / 2, height * 0.1);
+    // 遊戲結束才顯示電腦出拳
+    let compEmoji = "";
+    if (computerMove === "石頭") compEmoji = "✊ ";
+    if (computerMove === "剪刀") compEmoji = "✌️ ";
+    if (computerMove === "布") compEmoji = "✋ ";
 
-    fill(255, 255, 255);
-    textSize(40);
-    text(result, width / 2, height * 0.18);
+    fill(255);
+    textSize(32);
+    text("電腦出拳: " + compEmoji + computerMove, width / 2, height * 0.15);
   } else {
     // 倒數中顯示提示
     fill(200);
@@ -191,15 +194,18 @@ function drawUI(playerGesture, result) {
   }
 
   // 下方：玩家手勢
+  // 如果遊戲結束，顯示鎖定的手勢；否則顯示即時偵測的手勢
+  let displayGesture = (gameState === "finished") ? playerFinalMove : playerGesture;
+
   fill(255, 215, 0); // 金黃色字體
   textStyle(BOLD);
   textSize(32);
   let emoji = "";
-  if (playerGesture === "石頭") emoji = "✊ ";
-  if (playerGesture === "剪刀") emoji = "✌️ ";
-  if (playerGesture === "布") emoji = "✋ ";
+  if (displayGesture === "石頭") emoji = "✊ ";
+  if (displayGesture === "剪刀") emoji = "✌️ ";
+  if (displayGesture === "布") emoji = "✋ ";
   
-  text("你出：" + emoji + playerGesture, width / 2, height * 0.88);
+  text("你出：" + emoji + displayGesture, width / 2, height * 0.88);
   pop();
 }
 
