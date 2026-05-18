@@ -7,6 +7,7 @@ let computerMove = "等待中...";
 let lastChangeTime = 0;
 let duration = 3000; // 每回合 3 秒
 let gameResult = "";
+let gameState = "playing"; // 遊戲狀態：playing 或 finished
 
 function preload() {
   handPose = ml5.handPose(options);
