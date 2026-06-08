@@ -86,10 +86,10 @@ function draw() {
     let timeLeft = Math.max(0, Math.ceil((duration - timePassed) / 1000));
 
     if (timePassed > duration) {
-      gameResult = (score >= targetScore) ? "太棒了！你是撈魚達人 🎉" : "可惜... 沒撈到足夠的魚 😵";
+      gameResult = (score >= targetScore) ? "太棒了！你是撈魚達人 🎉" : "抓魚失敗... 沒撈到足夠的魚 😵";
       gameState = "finished";
 
-      if (gameResult.includes("輸")) {
+      if (score < targetScore) {
         isMathSolved = false;
         generateMathQuestion();
         userInputStr = "";
@@ -110,15 +110,15 @@ function draw() {
     fill(0, 0, 0, 180);
     rect(0, 0, width, height);
 
-    if (gameResult.includes("達人")) fill(0, 255, 0);      // 贏：綠色
-    else if (gameResult.includes("輸")) fill(255, 0, 0); // 輸：紅色
+    if (score >= targetScore) fill(0, 255, 0);          // 贏：綠色
+    else if (!isMathSolved) fill(255, 0, 0);            // 輸：紅色
     else fill(255, 255, 0);                             // 平手：黃色
     
     textStyle(BOLD);
     textSize(80);
     text(gameResult, width / 2, height / 2 - 50);
     
-    if (gameResult.includes("輸") && !isMathSolved) {
+    if (score < targetScore && !isMathSolved) {
       // 數學挑戰介面
       fill(255);
       textSize(32);
@@ -160,12 +160,14 @@ class Fish {
   constructor() {
     this.x = random(width);
     this.y = random(height);
-    this.speedX = random(-3, 3);
+    this.speedX = random(-4, 4);
     this.speedY = random(-2, 2);
     this.size = random(30, 60);
     this.color = color(255, random(100), 0);
   }
   update() {
+    // 讓魚偶爾改變速度方向，看起來更自然
+    if (random(1) < 0.02) this.speedY = random(-2, 2);
     this.x += this.speedX;
     this.y += this.speedY;
     if (this.x < 0 || this.x > width) this.speedX *= -1;
