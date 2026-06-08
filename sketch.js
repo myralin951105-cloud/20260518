@@ -1,304 +1,143 @@
-let capture;
-let handPose;
-let hands = [];
-let options = { flipHorizontal: true }; 
+let video;
 let fishes = [];
+let numFishes = 6;
 let score = 0;
-let targetScore = 5; // 目標分數，低於此分數算輸
-let netSize = 100;   // 魚網大小
-
-let lastChangeTime = 0;
-let duration = 10000; // 遊戲時間 10 秒
-let gameResult = "";
-let gameState = "playing"; // 遊戲狀態：playing 或 finished
-
-let mathQuestion = "";
-let mathAnswer = 0;
-let userInputStr = "";
-let isMathSolved = true; // 是否已解開數學題
-
-function preload() {
-  handPose = ml5.handPose(options);
-}
+let netRadius = 50; // 撈網的半徑
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  capture = createCapture(VIDEO, { flipped: true });
-  capture.size(640, 480); 
-  capture.hide();
-
-  handPose.detectStart(capture, gotHands);
-  textAlign(CENTER, CENTER);
-  resetGame();
-}
-
-function resetGame() {
-  score = 0;
-  fishes = Array.from({ length: 10 }, () => new Fish());
-  lastChangeTime = millis();
-}
-
-function gotHands(results) {
-  hands = results;
+  createCanvas(640, 480);
+  
+  // 初始化視訊鏡頭
+  video = createCapture(VIDEO);
+  video.size(width, height);
+  video.hide(); // 隱藏原生 HTML 視訊標籤，我們要在 canvas 裡畫出來
+  
+  // 初始化金魚的位置與速度
+  for (let i = 0; i < numFishes; i++) {
+    fishes.push(new Fish());
+  }
 }
 
 function draw() {
-  background('#0077be'); // 水藍色背景
-
-  let vWidth = width * 0.8;
-  let vHeight = (vWidth / 640) * 480;
-
-  push();
-  tint(255, 150); // 讓攝影機畫面半透明，更有水下感
-  translate(width / 2, height / 2);
-  image(capture, -vWidth / 2, -vHeight / 2, vWidth, vHeight);
-  pop();
-
-  if (gameState === "playing") {
-    // 更新並繪製魚
-    for (let fish of fishes) {
-      fish.update();
-      fish.display();
-    }
-
-    // 處理手部魚網
-    if (hands.length > 0) {
-      let hand = hands[0];
-      let indexTip = hand.keypoints[8]; // 使用食指尖端
-      let netX = map(indexTip.x, 0, capture.width, width / 2 - vWidth / 2, width / 2 + vWidth / 2);
-      let netY = map(indexTip.y, 0, capture.height, height / 2 - vHeight / 2, height / 2 + vHeight / 2);
-
-      // 繪製魚網
-      drawNet(netX, netY);
-
-      // 檢查是否撈到魚
-      for (let i = fishes.length - 1; i >= 0; i--) {
-        if (fishes[i].checkCaught(netX, netY, netSize / 2)) {
-          fishes.splice(i, 1);
-          score++;
-          fishes.push(new Fish()); // 捕到後立刻生出一條新的
-        }
-      }
-      drawHandSkeleton(hand, vWidth, vHeight);
-    }
-
-    let timePassed = millis() - lastChangeTime;
-    let timeLeft = Math.max(0, Math.ceil((duration - timePassed) / 1000));
-
-    if (timePassed > duration) {
-      gameResult = (score >= targetScore) ? "太棒了！你是撈魚達人 🎉" : "抓魚失敗... 沒撈到足夠的魚 😵";
-      gameState = "finished";
-
-      if (score < targetScore) {
-        isMathSolved = false;
-        generateMathQuestion();
-        userInputStr = "";
-      }
-    }
-
-    if (timeLeft > 0) {
-      push();
-      fill(255, 255, 255, 200); 
-      textStyle(BOLD);
-      textSize(vHeight * 0.4); 
-      text(timeLeft, width / 2, height / 2);
-      pop();
-    }
-  } else if (gameState === "finished") {
-    // 結束畫面：加上半透明遮罩與大字體結果
-    push();
-    fill(0, 0, 0, 180);
-    rect(0, 0, width, height);
-
-    if (score >= targetScore) fill(0, 255, 0);          // 贏：綠色
-    else if (!isMathSolved) fill(255, 0, 0);            // 輸：紅色
-    else fill(255, 255, 0);                             // 平手：黃色
-    
-    textStyle(BOLD);
-    textSize(80);
-    text(gameResult, width / 2, height / 2 - 50);
-    
-    if (score < targetScore && !isMathSolved) {
-      // 數學挑戰介面
-      fill(255);
-      textSize(32);
-      text("請回答數學題以解鎖重玩：", width / 2, height / 2 + 40);
-      fill(255, 255, 0);
-      textSize(48);
-      text(mathQuestion + " " + (userInputStr || "?"), width / 2, height / 2 + 100);
-      textSize(20);
-      fill(200);
-      text("(請輸入數字後按 Enter)", width / 2, height / 2 + 160);
-    } else {
-      fill(255);
-      textSize(30);
-      text("點擊畫面 再來一局", width / 2, height / 2 + 100);
-    }
-    pop();
+  // 將視訊畫面左右反轉（鏡像），這樣互動時比較符合直覺
+  translate(width, 0);
+  scale(-1, 1);
+  
+  // 繪製視訊背景
+  image(video, 0, 0, width, height);
+  
+  // 恢復座標系統，方便畫分數與文字（文字才不會變反的）
+  translate(width, 0);
+  scale(-1, 1);
+  
+  // 建立半透明的水藍色濾鏡，讓畫面更有魚缸/池塘的感覺
+  fill(0, 150, 255, 50);
+  rect(0, 0, width, height);
+  
+  // 更新並繪製所有的金魚
+  for (let i = 0; i < fishes.length; i++) {
+    fishes[i].update();
+    fishes[i].display();
   }
-
+  
+  // 繪製撈網（這裡以滑鼠位置代表撈網，在影像辨識中可以對應到特定顏色的手套或物體座標）
+  drawNet(mouseX, mouseY);
+  
+  // 顯示分數與教學提示
   drawUI();
 }
 
-// 產生隨機數學題
-function generateMathQuestion() {
-  let a = floor(random(1, 21));
-  let b = floor(random(1, 21));
-  let isAddition = random() > 0.5;
-  if (isAddition) {
-    mathQuestion = `${a} + ${b} =`;
-    mathAnswer = a + b;
-  } else {
-    if (a < b) { let temp = a; a = b; b = temp; } // 確保結果為正
-    mathQuestion = `${a} - ${b} =`;
-    mathAnswer = a - b;
-  }
-}
-
-// 魚類別
+// 金魚類別 (Class)
 class Fish {
   constructor() {
-    this.x = random(width);
-    this.y = random(height);
-    this.speedX = random(-4, 4);
-    this.speedY = random(-2, 2);
-    this.size = random(30, 60);
-    this.color = color(255, random(100), 0);
+    this.reset();
   }
+  
+  reset() {
+    this.x = random(width);
+    this.y = random(height - 100, height); // 讓金魚主要游在偏下方
+    this.speedX = random(1, 3) * (random() > 0.5 ? 1 : -1);
+    this.speedY = random(-0.5, 0.5);
+    this.size = random(30, 50);
+    this.fishColor = color(random(200, 255), random(100, 150), 0); // 橘紅色系的金魚
+  }
+  
   update() {
-    // 讓魚偶爾改變速度方向，看起來更自然
-    if (random(1) < 0.02) this.speedY = random(-2, 2);
     this.x += this.speedX;
     this.y += this.speedY;
+    
+    // 碰到邊界反彈
     if (this.x < 0 || this.x > width) this.speedX *= -1;
-    if (this.y < 0 || this.y > height) this.speedY *= -1;
+    if (this.y < 100 || this.y > height) this.speedY *= -1;
   }
+  
   display() {
     push();
-    fill(this.color);
+    translate(this.x, this.y);
+    // 根據游動方向調整魚頭朝向
+    if (this.speedX < 0) {
+      scale(-1, 1);
+    }
+    
+    // 畫魚尾巴
+    fill(this.fishColor);
     noStroke();
-    ellipse(this.x, this.y, this.size, this.size / 2);
-    // 簡單的魚尾巴
-    let tailDir = this.speedX > 0 ? -1 : 1;
-    triangle(this.x + (tailDir * this.size / 2), this.y, 
-             this.x + (tailDir * this.size * 0.8), this.y - 10, 
-             this.x + (tailDir * this.size * 0.8), this.y + 10);
+    triangle(-this.size/2, 0, -this.size, -this.size/3, -this.size, this.size/3);
+    
+    // 畫魚身體（橢圓）
+    ellipse(0, 0, this.size, this.size * 0.6);
+    
+    // 畫魚眼睛
+    fill(255);
+    ellipse(this.size/4, -this.size/6, this.size/6);
+    fill(0);
+    ellipse(this.size/4, -this.size/6, this.size/12);
     pop();
   }
-  checkCaught(nx, ny, nr) {
-    let d = dist(this.x, this.y, nx, ny);
-    return d < nr;
-  }
 }
 
-function drawNet(x, y) {
-  push();
-  // 網柄
-  stroke(200, 150, 100);
-  strokeWeight(8);
-  line(x, y, x + 50, y + 80);
-  
-  // 網框
-  stroke(255, 0, 0);
-  strokeWeight(4);
-  fill(255, 255, 255, 100);
-  ellipse(x, y, netSize, netSize);
-  
-  // 網紋
-  stroke(255, 255, 255, 150);
-  strokeWeight(1);
-  for(let i=-4; i<=4; i++) {
-    line(x+i*10, y-netSize/2, x+i*10, y+netSize/2);
-    line(x-netSize/2, y+i*10, x+netSize/2, y+i*10);
+// 繪製撈網並偵測是否有撈到金魚
+function drawNet(nx, ny) {
+  // 偵測撈網與每條金魚的距離
+  for (let i = 0; i < fishes.length; i++) {
+    let d = dist(nx, ny, fishes[i].x, fishes[i].y);
+    
+    // 如果魚在撈網範圍內，且玩家按下按鍵/滑鼠（代表撈的動作）
+    if (d < netRadius && mouseIsPressed) {
+      score += 10;
+      fishes[i].reset(); // 撈到後重置該金魚
+    }
   }
-  pop();
-}
-
-// 繪製網狀手部骨架 (完美還原 MediaPipe 綠色線條效果)
-function drawHandSkeleton(hand, vw, vh) {
-  push();
-  // 將座標系移到攝影機畫面的左上角
-  translate(width / 2 - vw / 2, height / 2 - vh / 2);
   
-  stroke(57, 255, 20); // 螢光綠線條
-  strokeWeight(3);
+  // 畫出網子外框（紅色代表準備撈，白色代表一般狀態）
   noFill();
+  if (mouseIsPressed) {
+    stroke(255, 0, 0);
+    strokeWeight(4);
+  } else {
+    stroke(255);
+    strokeWeight(2);
+  }
   
-  // 完整還原手掌與五指的網狀連接路徑
-  let paths = [
-    [0, 1, 2, 3, 4],       // 大拇指
-    [0, 5, 6, 7, 8],       // 食指
-    [9, 10, 11, 12],       // 中指 (從掌心延伸)
-    [13, 14, 15, 16],      // 無名指
-    [0, 17, 18, 19, 20],   // 小指
-    [5, 9, 13, 17],        // 指根橫向網狀連線
-    [0, 9], [0, 13]        // 掌心內部延伸連線
-  ];
-
-  for (let path of paths) {
-    beginShape();
-    for (let idx of path) {
-      let kp = hand.keypoints[idx];
-      let x = map(kp.x, 0, capture.width, 0, vw);
-      let y = map(kp.y, 0, capture.height, 0, vh);
-      vertex(x, y);
-    }
-    endShape();
-  }
-
-  // 繪製圓點關節
-  fill(0, 200, 255); // 關節點用淺藍或淺綠微調
-  noStroke();
-  for (let keypoint of hand.keypoints) {
-    let x = map(keypoint.x, 0, capture.width, 0, vw);
-    let y = map(keypoint.y, 0, capture.height, 0, vh);
-    circle(x, y, 7);
-  }
-  pop();
+  // 撈網的圓圈與網格線
+  ellipse(nx, ny, netRadius * 2);
+  line(nx - netRadius, ny, nx + netRadius, ny);
+  line(nx, ny - netRadius, nx, ny + netRadius);
+  
+  // 網子手把
+  stroke(150, 100, 50);
+  strokeWeight(6);
+  line(nx, ny + netRadius, nx, ny + netRadius + 40);
 }
 
-// 畫出上下的文字 UI
+// 顯示遊戲介面文字
 function drawUI() {
-  push();
   fill(255);
-  textStyle(BOLD);
-  textSize(32);
-  text("目前分數：" + score, 150, 50);
-  text("目標分數：" + targetScore, 150, 90);
-
-  if (gameState === "playing") {
-    fill(255, 255, 0);
-    textSize(24);
-    text("移動手掌，用紅色魚網捕捉金魚！", width / 2, height * 0.9);
-  }
-  pop();
-}
-
-// 點擊重啟遊戲
-function mousePressed() {
-  if (gameState === "finished" && isMathSolved) {
-    gameState = "playing";
-    resetGame();
-    gameResult = "";
-  }
-}
-
-function keyPressed() {
-  if (gameState === "finished" && !isMathSolved) {
-    if (keyCode === BACKSPACE) {
-      userInputStr = userInputStr.slice(0, -1);
-    } else if (keyCode === ENTER || keyCode === RETURN) {
-      if (parseInt(userInputStr) === mathAnswer) {
-        isMathSolved = true;
-      } else {
-        userInputStr = ""; // 答錯就清空
-      }
-    } else if (key >= '0' && key <= '9') {
-      userInputStr += key;
-    }
-  }
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  noStroke();
+  textSize(24);
+  textAlign(LEFT, TOP);
+  text("Score: " + score, 20, 20);
+  
+  textSize(16);
+  text("遊戲說明：移動網子並【按住滑鼠】來撈起金魚！", 20, 55);
 }
