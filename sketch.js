@@ -10,6 +10,11 @@ let gameResult = "";
 let gameState = "playing"; // 遊戲狀態：playing 或 finished
 let playerFinalMove = ""; // 用於鎖定結算時的手勢
 
+let mathQuestion = "";
+let mathAnswer = 0;
+let userInputStr = "";
+let isMathSolved = true; // 是否已解開數學題
+
 function preload() {
   handPose = ml5.handPose(options);
 }
@@ -62,7 +67,15 @@ function draw() {
       computerMove = random(gestures);
       playerFinalMove = playerGesture; // 紀錄出拳瞬間的手勢
       gameResult = calculateResult(playerGesture, computerMove);
-      gameState = "finished"; // 切換到結束狀態
+      gameState = "finished";
+
+      if (gameResult.includes("輸")) {
+        isMathSolved = false;
+        generateMathQuestion();
+        userInputStr = "";
+      } else {
+        isMathSolved = true;
+      }
     }
 
     // 顯示倒數數字
@@ -86,11 +99,24 @@ function draw() {
     
     textStyle(BOLD);
     textSize(80);
-    text(gameResult, width / 2, height / 2);
+    text(gameResult, width / 2, height / 2 - 50);
     
-    fill(255);
-    textSize(30);
-    text("點擊畫面 再來一局", width / 2, height / 2 + 100);
+    if (gameResult.includes("輸") && !isMathSolved) {
+      // 數學挑戰介面
+      fill(255);
+      textSize(32);
+      text("請回答數學題以解鎖重玩：", width / 2, height / 2 + 40);
+      fill(255, 255, 0);
+      textSize(48);
+      text(mathQuestion + " " + (userInputStr || "?"), width / 2, height / 2 + 100);
+      textSize(20);
+      fill(200);
+      text("(請輸入數字後按 Enter)", width / 2, height / 2 + 160);
+    } else {
+      fill(255);
+      textSize(30);
+      text("點擊畫面 再來一局", width / 2, height / 2 + 100);
+    }
     pop();
   }
 
@@ -112,6 +138,21 @@ function calculateResult(player, computer) {
     return "恭喜！你贏了 🎉";
   }
   return "可惜... 你輸了 😵";
+}
+
+// 產生隨機數學題
+function generateMathQuestion() {
+  let a = floor(random(1, 21));
+  let b = floor(random(1, 21));
+  let isAddition = random() > 0.5;
+  if (isAddition) {
+    mathQuestion = `${a} + ${b} =`;
+    mathAnswer = a + b;
+  } else {
+    if (a < b) { let temp = a; a = b; b = temp; } // 確保結果為正
+    mathQuestion = `${a} - ${b} =`;
+    mathAnswer = a - b;
+  }
 }
 
 // 精準的手勢辨識
@@ -211,11 +252,27 @@ function drawUI(playerGesture, result) {
 
 // 點擊重啟遊戲
 function mousePressed() {
-  if (gameState === "finished") {
+  if (gameState === "finished" && isMathSolved) {
     gameState = "playing";
     lastChangeTime = millis();
     gameResult = "";
     computerMove = "等待中...";
+  }
+}
+
+function keyPressed() {
+  if (gameState === "finished" && !isMathSolved) {
+    if (keyCode === BACKSPACE) {
+      userInputStr = userInputStr.slice(0, -1);
+    } else if (keyCode === ENTER || keyCode === RETURN) {
+      if (parseInt(userInputStr) === mathAnswer) {
+        isMathSolved = true;
+      } else {
+        userInputStr = ""; // 答錯就清空
+      }
+    } else if (key >= '0' && key <= '9') {
+      userInputStr += key;
+    }
   }
 }
 
