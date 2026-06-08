@@ -2,13 +2,15 @@ let capture;
 let handPose;
 let hands = [];
 let options = { flipHorizontal: true }; 
-let gestures = ["石頭", "剪刀", "布"];
-let computerMove = "等待中...";
+let fishes = [];
+let score = 0;
+let targetScore = 5; // 目標分數，低於此分數算輸
+let netSize = 100;   // 魚網大小
+
 let lastChangeTime = 0;
-let duration = 3000; // 每回合 3 秒
+let duration = 10000; // 遊戲時間 10 秒
 let gameResult = "";
 let gameState = "playing"; // 遊戲狀態：playing 或 finished
-let playerFinalMove = ""; // 用於鎖定結算時的手勢
 
 let mathQuestion = "";
 let mathAnswer = 0;
@@ -27,7 +29,13 @@ function setup() {
 
   handPose.detectStart(capture, gotHands);
   textAlign(CENTER, CENTER);
-  lastChangeTime = millis(); // 初始化計時器
+  resetGame();
+}
+
+function resetGame() {
+  score = 0;
+  fishes = Array.from({ length: 10 }, () => new Fish());
+  lastChangeTime = millis();
 }
 
 function gotHands(results) {
@@ -35,56 +43,65 @@ function gotHands(results) {
 }
 
 function draw() {
-  background('#333333'); // 改用深色背景，讓綠色骨架更顯眼
+  background('#0077be'); // 水藍色背景
 
-  // 計算全螢幕滿版或比例顯示 (這裡維持原本的 50% 區塊置中，你可以自由調大)
   let vWidth = width * 0.8;
-  let vHeight = (vWidth / 640) * 480; // 照比例縮放
+  let vHeight = (vWidth / 640) * 480;
 
-  // 1. 畫出攝影機影像
   push();
+  tint(255, 150); // 讓攝影機畫面半透明，更有水下感
   translate(width / 2, height / 2);
   image(capture, -vWidth / 2, -vHeight / 2, vWidth, vHeight);
   pop();
 
-  // 3. 辨識玩家手勢並顯示結果
-  let playerGesture = "偵測中...";
-  if (hands.length > 0) {
-    let hand = hands[0]; // 只取一隻手
-    playerGesture = detectGesture(hand);
-    
-    // 繪製如同結構圖的綠色網狀骨架
-    drawHandSkeleton(hand, vWidth, vHeight);
-  }
-
-  // 2. 計算倒數秒數與勝負邏輯
   if (gameState === "playing") {
-    let timePassed = millis() - lastChangeTime;
-    let countdown = Math.ceil((duration - timePassed) / 1000);
+    // 更新並繪製魚
+    for (let fish of fishes) {
+      fish.update();
+      fish.display();
+    }
 
-    // 時間到，電腦出拳並判定勝負
+    // 處理手部魚網
+    if (hands.length > 0) {
+      let hand = hands[0];
+      let indexTip = hand.keypoints[8]; // 使用食指尖端
+      let netX = map(indexTip.x, 0, capture.width, width / 2 - vWidth / 2, width / 2 + vWidth / 2);
+      let netY = map(indexTip.y, 0, capture.height, height / 2 - vHeight / 2, height / 2 + vHeight / 2);
+
+      // 繪製魚網
+      drawNet(netX, netY);
+
+      // 檢查是否撈到魚
+      for (let i = fishes.length - 1; i >= 0; i--) {
+        if (fishes[i].checkCaught(netX, netY, netSize / 2)) {
+          fishes.splice(i, 1);
+          score++;
+          fishes.push(new Fish()); // 捕到後立刻生出一條新的
+        }
+      }
+      drawHandSkeleton(hand, vWidth, vHeight);
+    }
+
+    let timePassed = millis() - lastChangeTime;
+    let timeLeft = Math.max(0, Math.ceil((duration - timePassed) / 1000));
+
     if (timePassed > duration) {
-      computerMove = random(gestures);
-      playerFinalMove = playerGesture; // 紀錄出拳瞬間的手勢
-      gameResult = calculateResult(playerGesture, computerMove);
+      gameResult = (score >= targetScore) ? "太棒了！你是撈魚達人 🎉" : "可惜... 沒撈到足夠的魚 😵";
       gameState = "finished";
 
       if (gameResult.includes("輸")) {
         isMathSolved = false;
         generateMathQuestion();
         userInputStr = "";
-      } else {
-        isMathSolved = true;
       }
     }
 
-    // 顯示倒數數字
-    if (countdown > 0) {
+    if (timeLeft > 0) {
       push();
-      fill(57, 255, 20, 200); 
+      fill(255, 255, 255, 200); 
       textStyle(BOLD);
       textSize(vHeight * 0.4); 
-      text(countdown, width / 2, height / 2);
+      text(timeLeft, width / 2, height / 2);
       pop();
     }
   } else if (gameState === "finished") {
@@ -93,7 +110,7 @@ function draw() {
     fill(0, 0, 0, 180);
     rect(0, 0, width, height);
 
-    if (gameResult.includes("贏")) fill(0, 255, 0);      // 贏：綠色
+    if (gameResult.includes("達人")) fill(0, 255, 0);      // 贏：綠色
     else if (gameResult.includes("輸")) fill(255, 0, 0); // 輸：紅色
     else fill(255, 255, 0);                             // 平手：黃色
     
@@ -120,24 +137,7 @@ function draw() {
     pop();
   }
 
-  // 4. 頂部與底部 UI 資訊
-  drawUI(playerGesture, gameResult);
-}
-
-// 判定勝負邏輯
-function calculateResult(player, computer) {
-  if (player === "判斷中" || player === "偵測中...") {
-    return "沒看清楚，請重來！";
-  }
-  if (player === computer) {
-    return "這局是 平手 🤝";
-  }
-  if ((player === "剪刀" && computer === "布") ||
-      (player === "石頭" && computer === "剪刀") ||
-      (player === "布" && computer === "石頭")) {
-    return "恭喜！你贏了 🎉";
-  }
-  return "可惜... 你輸了 😵";
+  drawUI();
 }
 
 // 產生隨機數學題
@@ -155,20 +155,61 @@ function generateMathQuestion() {
   }
 }
 
-// 精準的手勢辨識
-function detectGesture(hand) {
-  // 比較指尖與手指第3關節的 Y 軸差距
-  let f1 = hand.keypoints[8].y < hand.keypoints[5].y;   // 食指
-  let f2 = hand.keypoints[12].y < hand.keypoints[9].y;  // 中指
-  let f3 = hand.keypoints[16].y < hand.keypoints[13].y; // 無名指
-  let f4 = hand.keypoints[20].y < hand.keypoints[17].y; // 小指
+// 魚類別
+class Fish {
+  constructor() {
+    this.x = random(width);
+    this.y = random(height);
+    this.speedX = random(-3, 3);
+    this.speedY = random(-2, 2);
+    this.size = random(30, 60);
+    this.color = color(255, random(100), 0);
+  }
+  update() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+    if (this.x < 0 || this.x > width) this.speedX *= -1;
+    if (this.y < 0 || this.y > height) this.speedY *= -1;
+  }
+  display() {
+    push();
+    fill(this.color);
+    noStroke();
+    ellipse(this.x, this.y, this.size, this.size / 2);
+    // 簡單的魚尾巴
+    let tailDir = this.speedX > 0 ? -1 : 1;
+    triangle(this.x + (tailDir * this.size / 2), this.y, 
+             this.x + (tailDir * this.size * 0.8), this.y - 10, 
+             this.x + (tailDir * this.size * 0.8), this.y + 10);
+    pop();
+  }
+  checkCaught(nx, ny, nr) {
+    let d = dist(this.x, this.y, nx, ny);
+    return d < nr;
+  }
+}
 
-  let count = [f1, f2, f3, f4].filter(v => v).length;
-
-  if (f1 && f2 && !f3 && !f4) return "剪刀"; 
-  if (count >= 3) return "布";
-  if (count <= 1) return "石頭";
-  return "判斷中";
+function drawNet(x, y) {
+  push();
+  // 網柄
+  stroke(200, 150, 100);
+  strokeWeight(8);
+  line(x, y, x + 50, y + 80);
+  
+  // 網框
+  stroke(255, 0, 0);
+  strokeWeight(4);
+  fill(255, 255, 255, 100);
+  ellipse(x, y, netSize, netSize);
+  
+  // 網紋
+  stroke(255, 255, 255, 150);
+  strokeWeight(1);
+  for(let i=-4; i<=4; i++) {
+    line(x+i*10, y-netSize/2, x+i*10, y+netSize/2);
+    line(x-netSize/2, y+i*10, x+netSize/2, y+i*10);
+  }
+  pop();
 }
 
 // 繪製網狀手部骨架 (完美還原 MediaPipe 綠色線條效果)
@@ -215,38 +256,19 @@ function drawHandSkeleton(hand, vw, vh) {
 }
 
 // 畫出上下的文字 UI
-function drawUI(playerGesture, result) {
+function drawUI() {
   push();
-  if (gameState === "finished") {
-    // 遊戲結束才顯示電腦出拳
-    let compEmoji = "";
-    if (computerMove === "石頭") compEmoji = "✊ ";
-    if (computerMove === "剪刀") compEmoji = "✌️ ";
-    if (computerMove === "布") compEmoji = "✋ ";
-
-    fill(255);
-    textSize(32);
-    text("電腦出拳: " + compEmoji + computerMove, width / 2, height * 0.15);
-  } else {
-    // 倒數中顯示提示
-    fill(200);
-    textSize(24);
-    text("看準倒數，準備出拳！", width / 2, height * 0.1);
-  }
-
-  // 下方：玩家手勢
-  // 如果遊戲結束，顯示鎖定的手勢；否則顯示即時偵測的手勢
-  let displayGesture = (gameState === "finished") ? playerFinalMove : playerGesture;
-
-  fill(255, 215, 0); // 金黃色字體
+  fill(255);
   textStyle(BOLD);
   textSize(32);
-  let emoji = "";
-  if (displayGesture === "石頭") emoji = "✊ ";
-  if (displayGesture === "剪刀") emoji = "✌️ ";
-  if (displayGesture === "布") emoji = "✋ ";
-  
-  text("你出：" + emoji + displayGesture, width / 2, height * 0.88);
+  text("目前分數：" + score, 150, 50);
+  text("目標分數：" + targetScore, 150, 90);
+
+  if (gameState === "playing") {
+    fill(255, 255, 0);
+    textSize(24);
+    text("移動手掌，用紅色魚網捕捉金魚！", width / 2, height * 0.9);
+  }
   pop();
 }
 
@@ -254,9 +276,8 @@ function drawUI(playerGesture, result) {
 function mousePressed() {
   if (gameState === "finished" && isMathSolved) {
     gameState = "playing";
-    lastChangeTime = millis();
+    resetGame();
     gameResult = "";
-    computerMove = "等待中...";
   }
 }
 
